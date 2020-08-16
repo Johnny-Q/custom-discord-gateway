@@ -1,0 +1,10 @@
+{
+    "compilerOptions":{
+        "target": "esnext",
+        "watch":true,
+        "outDir":"./build"
+    },
+    "watchOptions":{
+        "watchDirectory":"useFsEvents"
+    }
+}
