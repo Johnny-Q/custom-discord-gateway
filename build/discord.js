@@ -4,7 +4,7 @@ const { threadId } = require("worker_threads");
 var api_base = "https://discord.com/api";
 //need to implement resuming sessions
 class Discord {
-    constructor(token, id) {
+    constructor(token, id, max_disconnections = 20) {
         this.io = null;
         this.token = token;
         this.id = id;
@@ -15,7 +15,7 @@ class Discord {
         this.last_s = null;
         this.sess_id = "";
 
-        this.max_disconnections = 20;
+        this.max_disconnections = max_disconnections;
         this.disconnections = 0;
     }
     async gatewayConnect() {
@@ -44,7 +44,7 @@ class Discord {
                 this.active = false;
             }
             else if (code != 1000 && this.active) {
-                if (this.disconnections <= this.max_disconnections) {
+                if (this.disconnections <= this.max_disconnections || this.max_disconnections == 0) {
                     if (Date.now() - this.prevConnect >= 5000) { //can only connect once every 5 seconds
                        this.gatewayConnect();
                        this.prevConnect = Date.now();
@@ -143,8 +143,6 @@ class Discord {
                     }
                 }
                 break;
-            case "READY":
-
         }
     }
     async isChannelDM(channel_id) {
@@ -177,7 +175,7 @@ class Discord {
         }
     }
 
-    sendMesssage(content, channel, token = this.token) {
+    sendMesssage(msgObj, channel, token = this.token) {
         return axios({
             "method": "POST",
             "url": `${api_base}/channels/${channel}/messages`,
@@ -185,7 +183,7 @@ class Discord {
                 "Authorization": "Bot " + token,
                 "content-type": "application/json"
             },
-            "data": JSON.stringify({ "content": `${content}` })
+            "data": JSON.stringify(msgObj)
         });
     }
 }
