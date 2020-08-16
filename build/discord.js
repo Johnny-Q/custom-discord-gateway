@@ -79,6 +79,7 @@ class Discord {
                     // console.log("heartbeated");
                     break;
                 case 10: //HELLO event
+                    console.log(timestamp(), "logged in");
                     //store heartbeat interval
                     this.hb_int = data.heartbeat_interval;
 
@@ -123,6 +124,7 @@ class Discord {
                 var { channel_id } = msg.d;
                 var { id } = msg.d.author;
                 var { content } = msg.d;
+                console.log(timestamp(), "received", content);
                 if (content[0] == '!') {
                     console.log(timestamp(), "RECIEVED COMMAND");
                     if (id != this.id && await this.isChannelDM(channel_id)) {
@@ -156,7 +158,7 @@ class Discord {
                 "url": `${api_base}/gateway/bot`,
                 "method": "get",
                 "headers": {
-                    "authorization": `Bot ${config.bot_token}`
+                    "authorization": `Bot ${this.token}`
                 }
             });
             return res.data.url;
