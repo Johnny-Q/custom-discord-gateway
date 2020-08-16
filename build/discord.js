@@ -1,5 +1,6 @@
 const ws = require("ws");
 const axios = require("axios");
+const { threadId } = require("worker_threads");
 var api_base = "https://discord.com/api";
 //need to implement resuming sessions
 class Discord {
@@ -11,22 +12,27 @@ class Discord {
         this.hb_int = 0;
         this.last_s = null;
         this.sess_id = "";
+
+        this.max_disconnections = 20;
+        this.disconnections = 0;
     }
     async gatewayConnect() {
         var url;
+        this.active = true;
         try {
             url = await this.getGatewayURL();
         }
         catch (err) {
-            console.log(err);
+            console.log(timestamp(), err);
             url = "wss://gateway.discord.gg/?v=6&encoding=json";
         }
         this.io = new ws(url);
         this.io.on("open", function () {
-            console.log("connection established");
+            console.log(timestamp(), "connection established");
         });
         this.io.on("close", (code, reason) => {
-            console.log(code, reason);
+            this.disconnections++;
+            console.log(timestamp(), "CLOSED", code, reason);
             if (this.hb_func) {
                 clearInterval(this.hb_func);
                 this.hb_func = null;
@@ -36,23 +42,32 @@ class Discord {
                 this.active = false;
             }
             else if (code != 1000 && this.active) {
-                if (Date.now() - prevConnect >= 5000) { //can only connect once every 5 seconds
-                    connect();
-                }
-                else {
-                    setTimeout(connect, 5000);
+                if (this.disconnections <= this.max_disconnections) {
+                    if (Date.now() - prevConnect >= 5000) { //can only connect once every 5 seconds
+                        gatewayConnect();
+                    }
+                    else {
+                        console.log(timestamp(), "throttling retry");
+                        setTimeout(gatewayConnect, 5000);
+                    }
+                }else{
+                    console.log(timestamp(), "max disconnections reached, closing");
+                    this.io.active = false;
+                    this.io.terminate();
+                    this.io.removeAllListeners();
                 }
             }
         });
         this.io.on("error", (error) => {
             var { code } = error;
+            console.log(timestamp(), "ERROR");
             if (code == "ENOTFOUND") {
             }
             this.terminate(); //will close and then call onclose to reconnect
         });
         this.io.on("message", msg => {
             msg = JSON.parse(msg);
-            console.log(msg);
+            // console.log(msg);
             var data = msg.d || null;
 
             if (msg.s != null) {
@@ -61,7 +76,7 @@ class Discord {
 
             switch (msg.op) {
                 case 11: //acknowledge heartbeat
-                    console.log("heartbeated");
+                    // console.log("heartbeated");
                     break;
                 case 10: //HELLO event
                     //store heartbeat interval
@@ -92,7 +107,7 @@ class Discord {
         }));
     }
     auth() {
-        console.log("authenticating");
+        console.log(timestamp(), "authenticating");
         this.io.send(JSON.stringify({
             "op": 2,
             "d": {
@@ -105,15 +120,16 @@ class Discord {
     async handleEvent(msg) {
         switch (msg.t) {
             case "MESSAGE_CREATE":
-                var {channel_id} = msg.d;
-                var {id} = msg.d.author;
-                var {content} = msg.d;
-                if(content[0] == '!'){
-                    if(id != this.id && await this.isChannelDM(channel_id)){
-                        console.log("is DM");
+                var { channel_id } = msg.d;
+                var { id } = msg.d.author;
+                var { content } = msg.d;
+                if (content[0] == '!') {
+                    console.log(timestamp(), "RECIEVED COMMAND");
+                    if (id != this.id && await this.isChannelDM(channel_id)) {
+                        // console.log("is DM");
                         this.sendMesssage("no", channel_id);
-                    }else{
-                        console.log("is not dm");
+                    } else {
+                        // console.log("is not dm");
                         this.sendMesssage("Cannot be used in server channel", channel_id);
                     }
                 }
@@ -125,12 +141,12 @@ class Discord {
             var res = await axios({
                 "method": "get",
                 "url": `${api_base}/channels/${channel_id}`,
-                "headers":{
-                    "authorization":"Bot " + this.token
+                "headers": {
+                    "authorization": "Bot " + this.token
                 }
             });
             return res.data.type == 1;
-        }catch(err){
+        } catch (err) {
             return false;
         }
     }
@@ -149,7 +165,7 @@ class Discord {
             throw "couldn't get gateway";
         }
     }
-    
+
     sendMesssage(content, channel, token = this.token) {
         return axios({
             "method": "POST",
@@ -162,5 +178,7 @@ class Discord {
         });
     }
 }
-
+function timestamp() {
+    return new Date().toLocaleString();
+}
 module.exports = Discord;
