@@ -8,6 +8,8 @@ class Discord {
         this.io = null;
         this.token = token;
         this.id = id;
+        this.prevConnect = 0;
+
         //gateway specific
         this.hb_int = 0;
         this.last_s = null;
@@ -43,12 +45,14 @@ class Discord {
             }
             else if (code != 1000 && this.active) {
                 if (this.disconnections <= this.max_disconnections) {
-                    if (Date.now() - prevConnect >= 5000) { //can only connect once every 5 seconds
-                        gatewayConnect();
+                    if (Date.now() - this.prevConnect >= 5000) { //can only connect once every 5 seconds
+                       this.gatewayConnect();
+                       this.prevConnect = Date.now();
                     }
                     else {
                         console.log(timestamp(), "throttling retry");
-                        setTimeout(gatewayConnect, 5000);
+                        setTimeout(this.gatewayConnect, 5000);
+                        this.prevConnect = Date.now() + 5000;
                     }
                 } else {
                     console.log(timestamp(), "max disconnections reached, closing");
