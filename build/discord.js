@@ -50,7 +50,7 @@ class Discord {
                         console.log(timestamp(), "throttling retry");
                         setTimeout(gatewayConnect, 5000);
                     }
-                }else{
+                } else {
                     console.log(timestamp(), "max disconnections reached, closing");
                     this.io.active = false;
                     this.io.terminate();
@@ -79,7 +79,6 @@ class Discord {
                     // console.log("heartbeated");
                     break;
                 case 10: //HELLO event
-                    console.log(timestamp(), "logged in");
                     //store heartbeat interval
                     this.hb_int = data.heartbeat_interval;
 
@@ -96,6 +95,10 @@ class Discord {
                     this.io.close(1012); //going for the completely disconnect and reconnect approach
                     break;
                 case 0: //other events
+                    if (msg.t == "READY") {
+                        this.sess_id = data.session_id;
+                        console.log(timestamp(), "logged in id", this.sess_id);
+                    }
                     this.handleEvent(msg);
                     break;
             }
@@ -136,6 +139,8 @@ class Discord {
                     }
                 }
                 break;
+            case "READY":
+
         }
     }
     async isChannelDM(channel_id) {
