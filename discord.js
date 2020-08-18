@@ -19,6 +19,7 @@ class Discord {
         this.disconnections = 0;
     }
     async gatewayConnect() {
+        console.log("@@@@@", this.token != undefined);
         var url;
         this.active = true;
         try {
@@ -46,12 +47,12 @@ class Discord {
             else if (code != 1000 && this.active) {
                 if (this.disconnections <= this.max_disconnections || this.max_disconnections == 0) {
                     if (Date.now() - this.prevConnect >= 5000) { //can only connect once every 5 seconds
-                       this.gatewayConnect();
-                       this.prevConnect = Date.now();
+                        this.gatewayConnect();
+                        this.prevConnect = Date.now();
                     }
                     else {
                         console.log(timestamp(), "throttling retry");
-                        setTimeout(this.gatewayConnect, 5000);
+                        setTimeout(() => { this.gatewayConnect() }, 5000);
                         this.prevConnect = Date.now() + 5000;
                     }
                 } else {
@@ -83,6 +84,7 @@ class Discord {
                     // console.log("heartbeated");
                     break;
                 case 10: //HELLO event
+                    console.log(timestamp(), "received HELLO");
                     //store heartbeat interval
                     this.hb_int = data.heartbeat_interval;
 
@@ -91,17 +93,25 @@ class Discord {
                         this.hb(this.last_s, this.io);
                     }, this.hb_int);
 
-                    //send the authentication
-                    this.auth();
+                    if (this.sess_id) {
+                        this.resume();
+                    } else {
+                        //send the authentication
+                        this.auth();
+                    }
                     break;
                 case 9: //invalid session
                     //could wait for thing, or completely disconnect and reconnect
+                    console.log(timestamp(), "INVALID SESSION");
+                    this.sess_id = "";
                     this.io.close(1012); //going for the completely disconnect and reconnect approach
                     break;
                 case 0: //other events
                     if (msg.t == "READY") {
                         this.sess_id = data.session_id;
                         console.log(timestamp(), "logged in id", this.sess_id);
+                    } else if (msg.t == "RESUMED") {
+                        console.log(timestamp(), "resumed", this.sess_id);
                     }
                     this.handleEvent(msg);
                     break;
@@ -125,7 +135,19 @@ class Discord {
             }
         }));
     }
+    resume() {
+        console.log(timestamp(), "resuming", this.sess_id);
+        this.io.send(JSON.stringify({
+            "op": 6,
+            "d": {
+                "token": this.token,
+                "session_id": this.sess_id,
+                "seq": this.last_s
+            }
+        }));
+    }
     async handleEvent(msg) {
+        console.log(timestamp(), "received event", msg.t);
         switch (msg.t) {
             case "MESSAGE_CREATE":
                 var { channel_id } = msg.d;
@@ -133,13 +155,18 @@ class Discord {
                 var { content } = msg.d;
                 console.log(timestamp(), "received", content);
                 if (content[0] == '!') {
-                    console.log(timestamp(), "RECIEVED COMMAND");
-                    if (id != this.id && await this.isChannelDM(channel_id)) {
-                        // console.log("is DM");
-                        this.sendMesssage("no", channel_id);
-                    } else {
-                        // console.log("is not dm");
-                        this.sendMesssage("Cannot be used in server channel", channel_id);
+                    console.log(timestamp(), "RECEIVED COMMAND");
+                    try {
+                        if (id != this.id && await this.isChannelDM(channel_id)) {
+                            // console.log("is DM");
+                            this.sendMesssage({"content":"no"}, channel_id);
+
+                        } else {
+                            // console.log("is not dm");
+                            this.sendMesssage({"content":"Cannot be used in a server channel. DM."}, channel_id);
+                        }
+                    } catch (err) {
+                        console.log(err);
                     }
                 }
                 break;
@@ -156,6 +183,7 @@ class Discord {
             });
             return res.data.type == 1;
         } catch (err) {
+            console.log(err);
             return false;
         }
     }
