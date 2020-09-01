@@ -1,6 +1,5 @@
 const ws = require("ws");
 const axios = require("axios");
-const { threadId } = require("worker_threads");
 var api_base = "https://discord.com/api";
 //need to implement resuming sessions
 class Discord {
@@ -17,6 +16,7 @@ class Discord {
 
         this.max_disconnections = max_disconnections;
         this.disconnections = 0;
+        this.active = false;
     }
     async gatewayConnect() {
         console.log("@@@@@", this.token != undefined);
@@ -118,6 +118,13 @@ class Discord {
             }
         });
     }
+    endSession(){
+        if(this.active){
+            this.active = false;
+            this.io.close(1000);
+            console.log(timestamp(), "ending session");
+        }
+    }
     hb(last_s, io) {
         io.send(JSON.stringify({
             "op": 1,
@@ -147,15 +154,15 @@ class Discord {
         }));
     }
     async handleEvent(msg) {
-        console.log(timestamp(), "received event", msg.t);
+        console.log(timestamp(), "EVENT", msg.t);
         switch (msg.t) {
             case "MESSAGE_CREATE":
                 var { channel_id } = msg.d;
                 var { id } = msg.d.author;
                 var { content } = msg.d;
-                console.log(timestamp(), "received", content);
+                console.log(timestamp(), "MESSAGE", channel_id, content);
                 if (content[0] == '!') {
-                    console.log(timestamp(), "RECEIVED COMMAND");
+                    console.log(timestamp(), "COMMAND");
                     try {
                         if (id != this.id && await this.isChannelDM(channel_id)) {
                             // console.log("is DM");
@@ -203,8 +210,8 @@ class Discord {
         }
     }
 
-    sendMesssage(msgObj, channel, token = this.token) {
-        return axios({
+    sendMessage(msgObj, channel, token = this.token) {
+        axios({
             "method": "POST",
             "url": `${api_base}/channels/${channel}/messages`,
             "headers": {
@@ -212,8 +219,11 @@ class Discord {
                 "content-type": "application/json"
             },
             "data": JSON.stringify(msgObj)
+        }).catch(err=>{
+            console.log(this.timestamp(), channel, err.response.data);
         });
     }
+    
 }
 function timestamp() {
     return new Date().toLocaleString();

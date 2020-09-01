@@ -18,4 +18,6 @@ example config.json
 }
 ```
 
-Extend the Discord class and overide handleEvent method to create custom bot behavior
+Extend the Discord class and overide handleEvent method to create custom bot behavior  
+
+Requires ws and axios
